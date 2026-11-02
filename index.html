@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#151923">
+<title>Chess Arena</title>
+<style>
+:root{--bg:#151923;--panel:#202735;--text:#f4f5f7;--muted:#aab3c2;--light:#eee5d5;--dark:#77936e;--accent:#f0c66a;--sel:#e8c547}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif}
+header{padding:16px 18px;text-align:center}h1{margin:0;font-size:24px;letter-spacing:1px}header p{margin:4px 0 0;color:var(--muted);font-size:12px}
+main{max-width:900px;margin:auto;padding:0 12px 24px;display:grid;grid-template-columns:minmax(0,560px) minmax(220px,1fr);gap:14px}
+.card{background:var(--panel);border:1px solid #303a4b;border-radius:16px;padding:12px}
+.topline{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;font-size:14px}
+#status{font-weight:700;color:var(--accent);text-align:right}
+.board{width:100%;max-width:min(100%,680px);aspect-ratio:1;min-width:0;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));border:4px solid #303a4b;border-radius:8px;overflow:hidden;touch-action:manipulation}
+.square{position:relative;min-width:0;min-height:0;aspect-ratio:1;border:0;padding:0;display:grid;place-items:center;font-size:clamp(25px,7vw,54px);line-height:1;cursor:pointer;user-select:none}
+.light{background:var(--light)}.dark{background:var(--dark)}
+.square.selected{box-shadow:inset 0 0 0 4px var(--sel)}
+.square.last{background-image:linear-gradient(#eacb4c66,#eacb4c66)}
+.square.target:after{content:"";position:absolute;width:24%;height:24%;border-radius:50%;background:#24342c66}
+.square.capture:after{content:"";position:absolute;inset:5%;border:4px solid #c34f4f99;border-radius:50%}
+.piece{position:relative;z-index:1;font-family:'DejaVu Sans','Noto Sans Symbols 2','Apple Symbols',serif;font-weight:400;line-height:1;text-shadow:0 1px 2px #0005}
+.coords{position:absolute;bottom:2px;left:3px;font-size:9px;color:#2229;z-index:2}
+.controls{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}
+button,select{background:#303b4d;color:var(--text);border:1px solid #46546a;border-radius:9px;padding:9px 11px;font:inherit;font-size:13px}
+button{cursor:pointer}button.primary{background:#b58b35;color:#161616;border-color:#d3ac57;font-weight:700}
+button:disabled{opacity:.4;cursor:not-allowed}
+.side{display:flex;flex-direction:column;gap:12px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+select{width:100%}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.moves{height:250px;overflow:auto;background:#171e29;border-radius:9px;padding:8px;font-size:13px}
+.move-row{display:grid;grid-template-columns:28px 1fr 1fr;gap:8px;padding:4px;border-bottom:1px solid #ffffff10}
+.move-row span:first-child{color:var(--muted)}
+.small{font-size:11px;color:var(--muted);line-height:1.5}
+.clock{display:flex;gap:8px}.clock div{flex:1;background:#171e29;border-radius:9px;padding:9px;text-align:center}.clock strong{display:block;font-size:20px}
+@media(max-width:700px){header{padding:8px 10px 10px}header h1{font-size:20px}main{display:flex;flex-direction:column;gap:8px;max-width:620px;padding:0 8px 12px}.card{padding:8px}.board{width:min(100%,calc(100dvh - 250px));max-width:620px;margin:0 auto}.side{display:grid;grid-template-columns:1fr 1fr;gap:8px}.side .history{grid-column:1/-1}.moves{height:110px}.controls{justify-content:center}.controls button{padding:8px 9px}}
+@media(max-width:390px){.side{grid-template-columns:1fr 1fr}.side .history{grid-column:1/-1}.board{width:min(100%,calc(100dvh - 235px))}}
+</style>
+</head>
+<body>
+<header><h1>♟ CHESS ARENA</h1><p>모바일 체스 · 로컬 대전 · 컴퓨터 대전</p></header>
+<main>
+<section class="card">
+ <div class="topline"><span id="turn">백 차례</span><span id="status">게임 준비 완료</span></div>
+ <div id="board" class="board" aria-label="체스판"></div>
+ <div class="controls">
+  <button id="new" class="primary">새 게임</button><button id="undo">무르기</button><button id="flip">판 뒤집기</button>
+  <button id="copy">기보 복사</button><button id="pgn">PGN 저장</button>
+ </div>
+</section>
+<aside class="side">
+ <section class="card">
+  <label for="mode">게임 방식</label><select id="mode"><option value="ai">컴퓨터와 대전</option><option value="local">2인 로컬 대전</option></select>
+  <div style="height:10px"></div><label for="level">컴퓨터 난이도</label><select id="level"><option value="1">1단계 · 쉬움</option><option value="2" selected>2단계 · 보통</option><option value="3">3단계 · 어려움</option><option value="4">4단계 · 도전</option></select>
+  <div style="height:10px"></div><label for="clockSelect">시계</label><select id="clockSelect"><option value="0">사용 안 함</option><option value="3">3분</option><option value="5">5분</option><option value="10">10분</option><option value="15">15분</option></select>
+  <div class="clock" style="margin-top:10px"><div><span class="small">백</span><strong id="whiteClock">—</strong></div><div><span class="small">흑</span><strong id="blackClock">—</strong></div></div>
+ </section>
+ <section class="card history"><div class="topline"><strong>대국 기록</strong><span class="small" id="count">0수</span></div><div class="moves" id="moves"></div></section>
+ <section class="card"><strong>게임 안내</strong><p class="small">말을 선택한 뒤 이동할 칸을 누르세요. 합법적인 이동만 가능합니다. 캐슬링, 앙파상, 체크, 체크메이트, 스테일메이트 및 프로모션(퀸 자동 승격)을 지원합니다.</p><p class="small">컴퓨터 대전은 백이 사용자, 흑이 AI입니다. AI는 간단한 탐색 알고리즘을 사용합니다.</p></section>
+</aside>
+</main>
+<script type="module">
+import { Chess } from "https://esm.sh/chess.js@1.4.0";
+const $=id=>document.getElementById(id);
+let game=new Chess(), selected=null, legal=[], flipped=false, lastMove=null, thinking=false;
+let remaining={w:0,b:0}, clockOn=false, timer=null, gameStarted=false;
+const glyph={k:"♔",q:"♕",r:"♖",b:"♗",n:"♘",p:"♙"};
+function squareName(r,c){return "abcdefgh"[c]+(8-r)}
+function render(){
+ const board=$("board");board.innerHTML="";
+ const files=flipped?"hgfedcba":"abcdefgh";
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+  const rr=flipped?7-r:r, cc=flipped?7-c:c, sq=squareName(rr,cc), piece=game.get(sq);
+  const el=document.createElement("button");el.className="square "+((rr+cc)%2?"dark":"light");
+  if(selected===sq)el.classList.add("selected");
+  if(lastMove&&(lastMove.from===sq||lastMove.to===sq))el.classList.add("last");
+  const move=legal.find(m=>m.to===sq);if(move)el.classList.add(piece?"capture":"target");
+  if(piece){const span=document.createElement("span");span.className="piece";span.textContent=glyph[piece.type];span.style.color=piece.color==="w"?"#fff":"#171717";span.style.webkitTextStroke=piece.color==="w"?"1.4px #303030":"1.4px #f3f0e8";el.append(span)}
+  if(c===0){const coord=document.createElement("span");coord.className="coords";coord.textContent=8-rr;el.append(coord)}
+  el.addEventListener("click",()=>onSquare(sq));board.append(el);
+ }
+ $("turn").textContent=game.isGameOver()?"대국 종료":(game.turn()==="w"?"백 차례":"흑 차례");
+ $("status").textContent=statusText();
+ $("count").textContent=game.history().length+"수";
+ renderMoves();$("undo").disabled=game.history().length===0||thinking;
+ updateClockLabels();
+}
+function statusText(){
+ if(game.isCheckmate())return "체크메이트!";
+ if(game.isStalemate())return "스테일메이트";
+ if(game.isDraw())return "무승부";
+ if(game.isCheck())return "체크!";
+ return "진행 중";
+}
+function onSquare(sq){
+ if(thinking||game.isGameOver()|| ( $("mode").value==="ai" && game.turn()==="b"))return;
+ const piece=game.get(sq);
+ if(selected){
+  const m=legal.find(x=>x.to===sq);
+  if(m){makeMove({from:selected,to:sq,promotion:"q"});return}
+ }
+ if(piece&&piece.color===game.turn()){selected=sq;legal=game.moves({square:sq,verbose:true})}
+ else {selected=null;legal=[]}
+ render();
+}
+function makeMove(move){
+ try{const result=game.move(move);if(!result)return;lastMove=result;selected=null;legal=[];render();if(game.isGameOver()){stopClock();return}startClockIfNeeded();if($("mode").value==="ai"&&game.turn()==="b")setTimeout(aiMove,180)}
+ catch(e){selected=null;legal=[];render()}
+}
+function renderMoves(){
+ const hist=game.history();let out="";
+ for(let i=0;i<hist.length;i+=2)out+=`<div class="move-row"><span>${i/2+1}.</span><span>${hist[i]||""}</span><span>${hist[i+1]||""}</span></div>`;
+ $("moves").innerHTML=out||'<span class="small">아직 이동 기록이 없습니다.</span>';$("moves").scrollTop=$("moves").scrollHeight;
+}
+const values={p:100,n:320,b:330,r:500,q:900,k:20000};
+function evaluate(g){
+ let score=0;const b=g.board();
+ for(let r=0;r<8;r++)for(let c=0;c<8;c++){const p=b[r][c];if(!p)continue;let v=values[p.type];let center=3.5-(Math.abs(3.5-r)+Math.abs(3.5-c))/2;
+ if(p.type==="p")v+=(p.color==="w"?(6-r):r)*7;
+ if("nbq".includes(p.type))v+=center*5;
+ score+=(p.color==="b"?v:-v)}
+ return score;
+}
+function minimax(g,depth,alpha,beta,maximizing){
+ if(depth===0||g.isGameOver())return evaluate(g);
+ const moves=g.moves({verbose:true});
+ if(maximizing){let best=-Infinity;for(const m of moves){g.move(m);best=Math.max(best,minimax(g,depth-1,alpha,beta,false));g.undo();alpha=Math.max(alpha,best);if(beta<=alpha)break}return best}
+ let best=Infinity;for(const m of moves){g.move(m);best=Math.min(best,minimax(g,depth-1,alpha,beta,true));g.undo();beta=Math.min(beta,best);if(beta<=alpha)break}return best;
+}
+function aiMove(){
+ if(game.isGameOver()||game.turn()!=="b")return;
+ thinking=true;$("status").textContent="컴퓨터 생각 중…";$("undo").disabled=true;
+ setTimeout(()=>{
+  const depth=Number($("level").value);const moves=game.moves({verbose:true});let best=-Infinity, choices=[];
+  for(const m of moves){game.move(m);const score=minimax(game,depth-1,-Infinity,Infinity,false);game.undo();if(score>best){best=score;choices=[m]}else if(score===best)choices.push(m)}
+  const chosen=choices[Math.floor(Math.random()*choices.length)];thinking=false;if(chosen)makeMove({from:chosen.from,to:chosen.to,promotion:"q"});else render();
+ },40);
+}
+function updateClockLabels(){
+ const fmt=n=>{if(!clockOn)return "—";const s=Math.max(0,n);return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")};
+ $("whiteClock").textContent=fmt(remaining.w);$("blackClock").textContent=fmt(remaining.b);
+}
+function startClockIfNeeded(){
+ if(!clockOn||timer||game.isGameOver())return;gameStarted=true;
+ timer=setInterval(()=>{const side=game.turn();remaining[side]--;updateClockLabels();if(remaining[side]<=0){stopClock();$("status").textContent=(side==="w"?"백":"흑")+" 시간 초과";game=new Chess();render()}},1000);
+}
+function stopClock(){if(timer){clearInterval(timer);timer=null}}
+function resetClock(){stopClock();const mins=Number($("clockSelect").value);clockOn=mins>0;remaining={w:mins*60,b:mins*60};gameStarted=false;updateClockLabels()}
+$("new").onclick=()=>{game=new Chess();selected=null;legal=[];lastMove=null;thinking=false;resetClock();render()};
+$("undo").onclick=()=>{if(thinking)return;stopClock();game.undo();if($("mode").value==="ai"&&game.turn()==="b")game.undo();lastMove=null;selected=null;legal=[];resetClock();render()};
+$("flip").onclick=()=>{flipped=!flipped;render()};
+$("mode").onchange=()=>{$("level").disabled=$("mode").value==="local";$("new").click()};
+$("level").onchange=()=>{};
+$("clockSelect").onchange=()=>{$("new").click()};
+$("copy").onclick=async()=>{try{await navigator.clipboard.writeText(game.pgn());$("status").textContent="기보를 복사했어요"}catch(e){$("status").textContent="복사할 수 없습니다"}};
+$("pgn").onclick=()=>{const blob=new Blob([game.pgn()],{type:"application/x-chess-pgn"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="chess-game.pgn";a.click();URL.revokeObjectURL(a.href)};
+$("level").disabled=false;resetClock();render();
+</script>
+</body>
+</html>
